@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OHD Distributor Map — North America</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; background: #f0f2f5; }
+  #header { background: #1a1a2e; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  #header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.3px; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip { background: rgba(255,255,255,0.12); border-radius: 6px; padding: 4px 12px; font-size: 12px; font-weight: 500; }
+  .chip.east   { border-left: 3px solid #42A5F5; }
+  .chip.central{ border-left: 3px solid #66BB6A; }
+  .chip.west   { border-left: 3px solid #EF5350; }
+  .chip.intl   { border-left: 3px solid #CE93D8; }
+
+  #controls { background: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #ddd; }
+  .filter-btn { border: 1.5px solid #ccc; background: #fff; border-radius: 20px; padding: 5px 16px; font-size: 12px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
+  .filter-btn:hover { background: #f5f5f5; }
+  .filter-btn.active { color: #fff; border-color: transparent; }
+  .filter-btn.active.all     { background: #444; }
+  .filter-btn.active.east    { background: #1E88E5; }
+  .filter-btn.active.central { background: #43A047; }
+  .filter-btn.active.west    { background: #E53935; }
+  .filter-btn.active.intl    { background: #8E24AA; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  #search-wrap { margin-left: auto; }
+  #search { border: 1px solid #ccc; border-radius: 20px; padding: 5px 14px; font-size: 12px; width: 200px; outline: none; }
+  #search:focus { border-color: #1E88E5; }
+
+  #map { height: calc(100vh - 110px); width: 100%; }
+
+  .legend { background: white; padding: 10px 14px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; line-height: 2; min-width: 130px; }
+  .legend b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; display: block; margin-bottom: 4px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; }
+  .ldot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+  .leaflet-popup-content-wrapper { border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); padding: 0; overflow: hidden; min-width: 260px; }
+  .leaflet-popup-content { margin: 0; width: auto !important; }
+  .popup-inner { padding: 14px 16px; }
+  .popup-name { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .popup-region { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .popup-region.east    { color: #1E88E5; }
+  .popup-region.central { color: #43A047; }
+  .popup-region.west    { color: #E53935; }
+  .popup-region.intl    { color: #8E24AA; }
+  .popup-row { font-size: 12px; color: #444; margin: 4px 0; display: flex; gap: 8px; align-items: flex-start; }
+  .popup-label { color: #999; min-width: 52px; font-size: 11px; padding-top: 1px; }
+  .popup-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .popup-btn { flex: 1; text-align: center; padding: 7px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-decoration: none; cursor: pointer; border: none; }
+  .popup-btn.website { background: #1a1a2e; color: #fff; }
+  .popup-btn.email   { background: #f0f4ff; color: #1E88E5; }
+  .popup-btn:hover { opacity: 0.85; }
+  .popup-header { height: 4px; }
+  .popup-header.east    { background: #1E88E5; }
+  .popup-header.central { background: #43A047; }
+  .popup-header.west    { background: #E53935; }
+  .popup-header.intl    { background: #8E24AA; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🏢 Overhead Door Company — Distributor Network</h1>
+  <div class="stats">
+    <span class="chip east"   id="cnt-east">East: 160</span>
+    <span class="chip central" id="cnt-central">Central: 158</span>
+    <span class="chip west"   id="cnt-west">West: 89</span>
+    <span class="chip intl"   id="cnt-intl">Canada/Intl: 22</span>
+    <span class="chip"        id="cnt-total">Total: 429</span>
+  </div>
+</div>
+
+<div id="controls">
+  <button class="filter-btn active all" onclick="filter('all',this)"><span class="dot" style="background:#444"></span>All Regions</button>
+  <button class="filter-btn east"    onclick="filter('east',this)"><span class="dot" style="background:#1E88E5"></span>East</button>
+  <button class="filter-btn central" onclick="filter('central',this)"><span class="dot" style="background:#43A047"></span>Central</button>
+  <button class="filter-btn west"    onclick="filter('west',this)"><span class="dot" style="background:#E53935"></span>West</button>
+  <button class="filter-btn intl"    onclick="filter('intl',this)"><span class="dot" style="background:#8E24AA"></span>Canada / Intl</button>
+  <div id="search-wrap"><input id="search" type="text" placeholder="🔍  Search location..." oninput="searchLoc(this.value)"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+const COLORS = { east:'#1E88E5', central:'#43A047', west:'#E53935', intl:'#8E24AA' };
+const LABELS = { east:'East', central:'Central', west:'West', intl:'Canada / Intl' };
+
+const DATA = [
+["Abilene™","TX","central",32.4487,-99.7331,"4201 Sayles Road, Abilene TX 79605","325-695-2070","http://ohdcompany.com/","winifredcampbell@ohdcompany.com"],
+["Acadian™","LA","central",30.4960,-92.4154,"4498 Hwy 190, Eunice LA 70535","337-550-0753","https://overheaddooroflafayette.com/","john@ohdmidla.net"],
+["Ada™","OK","central",34.7748,-96.6783,"201 N.E. Richardson Loop, Ada OK 74820","580-332-0465","https://www.overheaddoorada.com/","ohdada@sbcglobal.net"],
+["Aiken™","SC","east",33.5601,-81.7198,"Aiken SC","","",""],
+["Akron™","OH","east",41.1335,-81.4984,"4266 Wyoga Lake Rd, Cuyahoga Falls OH 44224","330-929-3452","https://odcakron.com/","sales@odcakron.com"],
+["Albany™ - NY","NY","east",42.8142,-73.9396,"15 Corporate Drive, Clifton Park NY 12065","518-348-0444","https://www.albanyohd.com/","ohdooralb@aol.com"],
+["Albert Lea™","MN","central",43.6480,-93.3683,"77893 209th St, Albert Lea MN 56007","507-373-4435","https://www.overheaddooralbertlea.com/","ron.nelson@overheaddooralbertlea.com"],
+["Albuquerque™","NM","west",35.1053,-106.6464,"5656 Pasadena Ave NE, Albuquerque NM 87109","505-344-3667","https://overheaddooralbuquerque.com/","ohdofabq5@odcnm.com"],
+["Allentown™","PA","east",40.6518,-75.4985,"4498 Commerce Drive, Whitehall PA 18052","610-262-3530","https://www.ohdallentown.com/","ohdcoallen@aol.com"],
+["Alpena™","MI","east",45.0617,-83.4327,"2550 US 23 South, Alpena MI 49707","989-354-8316","https://www.overheaddooralpena.com/","chrisoverheaddoor@yahoo.com"],
+["Amarillo™","TX","west",35.2220,-101.8313,"4111 Northwest 10th St, Amarillo TX 79106","806-372-5884","http://overheaddoorcompanyofamarillo.com/","gary@odcamarillo.com"],
+["Ann Arbor™","MI","east",42.2808,-83.7430,"834 Phoenix Dr, Ann Arbor MI 48108","734-492-1616","https://overheaddoormichigan.com/","carla@overheaddoorannarbor.com"],
+["Anniston-Gadsden™","AL","east",33.6598,-85.8311,"4300 Choctaw Road, Anniston AL 36201","256-820-5967","https://www.ohdbirmingham.com/","sales@ohdbirmingham.com"],
+["Appleton™","WI","central",44.2619,-88.4154,"3939 West Spencer, Appleton WI 54914","920-731-9733","https://ohdappleton.com/","btheys@ohdnew.com"],
+["Aroostook County™","ME","east",46.8583,-68.0118,"320 Bowles Rd, Caribou ME 04736","207-554-9044","https://www.overheaddoorofaroostook.com/","jean@overheaddoorofbangor.com"],
+["Atlanta™","GA","east",33.9769,-84.2138,"5105 Avalon Ridge Pkwy, Peachtree Corners GA 30071","404-872-3667","https://overheaddooratlanta.com/","randy.batt@ohdatl.com"],
+["Augusta™ - GA","GA","east",33.4735,-82.0105,"1529 Crescent Drive, Augusta GA 30909","706-736-8478","https://ohdaugusta.com/","tyler@ohdaugusta.com"],
+["Augusta™ - ME","ME","east",44.3106,-69.7795,"36 Anthony Ave, Augusta ME 04330","207-622-1199","https://www.overheaddoor-portland.com/","mjtrue@overheaddoorcompany.com"],
+["Austin™","TX","central",30.2179,-97.7733,"6231 E Stassney Ln, Austin TX 78744","512-442-1561","https://www.ohdctx.com/","jgibbs@southerndock.com"],
+["Baltimore™","MD","east",39.2612,-76.6774,"3501 Century Avenue, Baltimore MD 21227","410-636-6306","https://ohdbalt.com/","pcummings@nationaldoor.com"],
+["Bangor™","ME","east",44.8012,-68.7778,"56 Liberty Dr, Bangor ME 04401","207-848-2866","https://www.overheaddoorofbangor.com/","info@overheaddoorofbangor.com"],
+["Batavia™","NY","east",43.0001,-78.1875,"2975 West Main St Rd, Batavia NY 14020","585-762-9100","http://www.bataviaoverheaddoor.com/","woodruffdoor@gmail.com"],
+["Battle Creek™","MI","east",42.3211,-85.1797,"4407 W Columbia Ave, Battle Creek MI 49015","269-962-3141","https://www.overheaddoormichigan.com/","dwhit@ohdbc.com"],
+["Beaumont™","TX","central",30.0802,-94.1266,"1547 Main Lane, Beaumont TX 77713","409-866-2535","https://theoverheaddoor.com/beaumont/","Gary@beaumontdoors.com"],
+["Bellingham™","WA","west",48.7519,-122.4787,"202 Ohio St, Bellingham WA 98227","360-227-5508","https://ohdbellingham.com/","avilasj@gmail.com"],
+["Berwick™","PA","east",41.0548,-76.2369,"1004 Vine Street, Berwick PA 18603","570-759-3053","http://www.ohdberwick.com/","sbeck@overheaddoorofpa.com"],
+["Binghamton™","NY","east",42.0987,-75.9180,"302 Front Street, Binghamton NY 13905","607-722-6451","https://ohdny.com/","gene@ohdbing.com"],
+["Birmingham™","AL","east",33.5952,-86.6744,"2600 Crestwood Blvd, Irondale AL 35210","205-956-3667","https://www.ohdbirmingham.com/","mschafer@ohdbirmingham.com"],
+["Blair County™","PA","east",40.4204,-78.4178,"3475 Route 764, Duncansville PA 16635","814-944-0524","https://blaircountyoverheaddoor.com/","odcblair.michael@gmail.com"],
+["Bloomington™ - IN","IN","east",39.1653,-86.5264,"3940 W Farmer Ave, Bloomington IN 47403","812-336-5078","https://ohdbloomington.com/","scotts@ohdcvg.com"],
+["Blue Springs™","MO","central",39.0170,-94.2816,"718 N 7 Highway, Blue Springs MO 64014","816-955-4639","https://overheaddoorkansascity.com/","steve.pascuzzi@dhpace.com"],
+["Boston™","MA","east",42.1315,-70.9168,"300 Weymouth Street, Rockland MA 02370","781-871-3850","https://overheaddoorboston.com/","steve.pascuzzi@dhpace.com"],
+["Bountiful™","UT","west",40.8797,-111.8802,"2481 S 1560 West, Woods Cross UT 84087","801-295-7581","https://overheaddoorcompany.minercorp.com/","fstrickland@minercorp.com"],
+["Bowling Green™","KY","central",36.9685,-86.4808,"2717 Nashville Road, Bowling Green KY 42101","270-781-3290","http://www.overheaddoorbg.com/","ohdbg@overheaddoorbg.com"],
+["Brevard™","FL","central",28.3861,-80.7401,"1465 Cox Rd, Cocoa FL 32926","321-639-0480","https://ohdcentralfla.com/","kwhitehurst@allieddoors.com"],
+["Brookfield™","CT","east",41.4751,-73.4065,"549 Federal Road, Brookfield CT 06804","203-740-7691","https://www.overheaddoorbrookfield.com","mhunihan@aol.com"],
+["Brown County™","SD","central",45.4647,-98.4865,"2980 West Hwy 12, Aberdeen SD 57401","605-226-8000","https://overheaddoorsd.com/","jot@overheaddoorsd.com"],
+["Brownwood™","TX","central",31.7093,-98.9912,"608 Early Blvd, Early TX 76802","325-643-4996","https://ohdcompany.com/","wcampbell12@verizon.net"],
+["Brunswick™","GA","east",31.1499,-81.4915,"3110 Lee St, Brunswick GA 31520","912-602-6937","https://garagedoorofbrunswick.com/","rs@ohdocsc.com"],
+["Buffalo Commercial™","NY","east",42.6334,-78.6834,"1158 Davis Road, West Falls NY 14170","716-500-3667","https://overheaddoor-buffalo.com","auroradoorny@gmail.com"],
+["Burlington County™","NJ","east",40.0691,-74.8712,"444 Logan Street, Burlington NJ 08016","609-387-9092","https://bcoverheaddoor.com/","sales@bcoverheaddoor.com"],
+["Burlington™ - VT","VT","east",44.4384,-73.0591,"5375 Williston Rd, Williston VT 05495","802-864-9895","https://www.overheaddoorvt.com/","djohnson@overheaddoorvt.com"],
+["Butler County™","MO","central",36.7575,-90.4129,"1606 Highway B, Poplar Bluff MO 63901","573-686-1122","","ohdbutlercounty@mycitycable.com"],
+["Cache Valley™","UT","west",41.7370,-111.8338,"695 West 1700 South, Logan UT 84321","435-774-1170","https://overheaddoorcompany.minercorp.com/","fstrickland@minercorp.com"],
+["Calgary™","AB","intl",51.0447,-114.0719,"Bay 6 11133 40th St SE, Calgary AB T2C 2Z4","403-262-7777","https://www.overheaddoorsales.ca/","belislepj@overheaddoor.tv"],
+["Camden™","AR","central",33.5843,-92.8343,"1150 W Washington St, Camden AR 71701","870-836-4321","https://camdenglassandohd.com/","lelandwg@sbcglobal.net"],
+["Campbellsville™","KY","east",37.3431,-85.3416,"401 Water Tower Bypass, Campbellsville KY 42718","270-465-6616","http://www.overheaddoorcville.com/","gfloydohd@live.com"],
+["Cape Cod™","MA","east",41.6517,-70.2800,"50 Joaquim Rd, Hyannis MA 02601","508-778-6251","https://www.overheaddoorcapecod.com/","tjskayne@yahoo.com"],
+["Capital City™ - LA","LA","central",30.6584,-91.0565,"2155 Church St, Zachary LA 70791","225-654-2859","https://overheaddoorbatonrouge.com/","George@OverheadDoorbr.com"],
+["Casper™","WY","west",42.8501,-106.3252,"2760 Fleetwood Place, Casper WY 82601","307-266-1440","https://www.ohdcasper.com/","royp@ohdcasper.com"],
+["Cedar Rapids & Iowa City™","IA","central",41.9779,-91.6656,"6515 4th Street SW, Cedar Rapids IA 52404","319-363-9976","https://www.overheadcric.com/","Dpowell@ohdcric.com"],
+["Central Arizona™","AZ","west",33.3727,-111.8895,"9235 S Mckemy St, Tempe AZ 85284","602-437-9289","https://overheaddoorcentralarizona.com/","azsales@dhpace.com"],
+["Central Bay Area Comml™","CA","west",37.6688,-122.0808,"24747 Clawiter Road, Hayward CA 94545","510-792-3305","http://overheaddoorcentralbay.com/","treed@dwnicholson.com"],
+["Central Florida™","FL","central",28.5383,-81.3792,"1465 Cox Rd, Cocoa FL 32926","407-578-8757","http://ohdcentralfla.com/","kwhitehurst@allieddoors.com"],
+["Central Jersey™","NJ","east",40.5768,-74.7322,"952 Route 202 South, Branchburg NJ 08876","908-722-5785","https://www.overheaddoorco.com/","makersdoorgroup@gmail.com"],
+["Central Mississippi™","MS","central",32.3643,-88.6952,"2607 Sellers Dr, Meridian MS 39301","662-681-1727","","ftull@tullbrothersinc.com"],
+["Central Missouri™","MO","central",38.9517,-92.3341,"2401 N Industrial Drive, Columbia MO 65202","573-874-3667","https://overheaddoorcentralmo.com/","tim.lower@ohdspringfield.com"],
+["Central Nebraska™","NE","central",40.9264,-98.3420,"2812 W Old Hwy 30, Grand Island NE 68803","308-389-3667","https://overheaddoorgrandisland.com","tpalmer_Cenneb@wayne-dalton.com"],
+["Central Oregon™","OR","west",44.0582,-121.3153,"63056 Lower Meadow Dr, Bend OR 97701","541-389-3667","","rich.odcco@bendbroadband.com"],
+["Central Texas™","TX","central",30.5229,-97.6787,"2100 Greenhill Drive, Round Rock TX 78664","737-301-3667","https://theoverheaddoor.com/central-texas/","Gary@beaumontdoors.com"],
+["Central Virginia™","VA","east",37.7646,-77.4804,"10391 Leadbetter Rd, Ashland VA 23005","804-550-1300","https://www.overheaddoors.com/","joe_haw@odcdc.com"],
+["Charleston™","SC","east",32.8895,-79.9974,"2260 Technical Pkwy, North Charleston SC 29406","843-767-0028","https://overheaddoorcocharleston.com/","rsmith@ohdocsc.com"],
+["Charlottesville™","VA","east",38.0293,-78.4767,"1800 Broadway, Charlottesville VA 22902","434-295-5868","http://www.overheaddoorcharlottesville.com/","wayneohd@ntelos.net"],
+["Charlotte™","NC","east",35.2271,-80.8431,"3035 Horseshoe Lane, Charlotte NC 28208","704-887-3667","https://www.overheaddoorofcharlotte.com/","john.nale@dhpace.com"],
+["Chattanooga™","TN","east",35.0456,-85.3097,"3500 Alton Park Blvd, Chattanooga TN 37410","423-867-4354","https://www.overheaddoorchattanooga.com/","ncox@wmstrimble.com"],
+["Chester-Delaware Counties™","PA","east",39.9001,-75.2279,"3 Independence Ct, Folcroft PA 19032","610-583-8522","https://www.ohdchester.com/","ohdchester@aol.com"],
+["Cheyenne™","WY","west",41.1400,-104.8197,"1017 East Lincolnway, Cheyenne WY 82001","307-316-3667","https://www.overheaddoorcheyenne.com/","rob.pettyjohn@overheaddoordenver.com"],
+["Chicago™","IL","central",41.9315,-88.0058,"900 S Westgate Street, Addison IL 60101","630-474-2466","https://www.overheaddoorchicago.com/","dan@ohdchi.com"],
+["Ciudad Jaurez™","MX","intl",31.6904,-106.4245,"Ejercito Nacional 2926-K, CD Juarez MX 32528","+52 (656) 378-0503","","ricardom@dooreq.com"],
+["Clearwater™","FL","central",27.9654,-82.7289,"12855 Daniel Drive, Clearwater FL 33762","727-561-9090","https://www.overheaddoorclearwater.com/","gloria@overheadclw.com"],
+["Cody™","WY","west",44.5263,-109.0565,"2629 Big Horn Ave, Cody WY 82414","307-527-6557","https://overheaddoorofcody.com/","curt@codyoverheaddoor.com"],
+["Collin County™","TX","central",33.1032,-96.6706,"13 Prestige Circle, Allen TX 75002","469-659-7100","https://dallasdoors.com/","padams@dallasdoors.com"],
+["Colorado Springs™","CO","west",38.8339,-104.8214,"1205 Ford Street, Colorado Springs CO 80915","719-596-2171","https://overheaddoorcoloradosprings.com/","craig.durbin@dhpace.com"],
+["Columbia™","SC","east",34.0579,-80.9784,"313 Rabon Rd, Columbia SC 29223","803-768-4682","https://overheaddoorcolumbia.com/","andy@ohdcolumbia.com"],
+["Columbus™ - GA","GA","east",32.4610,-84.9877,"1230 5th Ave, Columbus GA 31901","706-925-1671","https://odccolumbus.com/","egaffney@gaffneyodc.com"],
+["Columbus™ - NE","NE","central",41.4300,-97.3678,"2781 54th Avenue, Columbus NE 68601","402-564-7446","https://ohdcolumbus.com/","cori.callan@modoorproducts.com"],
+["Concord™","NH","east",43.2081,-71.5376,"38 Locke Rd, Concord NH 03301","603-224-2280","https://www.ohdconcord.com/","richard.sarno@installed.net"],
+["Conroe™","TX","central",30.3119,-95.4560,"118 Commercial Circle, Conroe TX 77304","936-756-0100","https://ohdconroe.com/","scott.porter@ohdconroe.com"],
+["Conway™","AR","central",35.0887,-92.4421,"1023 Main Street, Conway AR 72032","501-758-3508","https://overheaddooroflittlerock.com/","van.rowe@dhpace.com"],
+["Cook Inlet™","AK","west",61.2181,-149.9003,"6514 Greenwood Street, Anchorage AK 99518","907-344-2212","https://overheaddoorcookinlet.com/","amills@pioneerdoorak.com"],
+["Cookeville™","TN","east",36.1628,-85.5016,"8139 Rocky Point Rd, Cookeville TN 38506","931-839-2866","https://townandcountryoverheaddoor.com/","ohdofcookeville@frontiernet.net"],
+["Corbin™","KY","east",36.9493,-84.0963,"3716 Cumberland Falls Hwy, Corbin KY 40701","606-528-7582","https://www.corbindoors.com/","aj@corbindoors.com"],
+["Cortland™","NY","east",42.6012,-76.1805,"33 Cleveland Street, Cortland NY 13045","607-753-0201","http://www.ohdcortland.com/","greg@ohdcortland.com"],
+["Council Bluffs™","NE","central",41.2619,-95.8608,"120 East Broadway, Council Bluffs IA 51503","712-256-6675","https://overheaddoorcouncilbluffs.com/","rick@overheaddooromaha.com"],
+["Cumberland™","MD","east",39.6534,-78.7625,"920 Kelly Rd, Cumberland MD 21502","301-724-4888","http://www.hpg-ohd.com/","brapson@hpg-ohd.com"],
+["Dallas-Commercial™","TX","central",32.8680,-96.8641,"10671 King William Drive, Dallas TX 75330","214-350-4621","https://overheaddoorcompany.minercorp.com/","bchoate@overheaddoordallas.com"],
+["Dallas™","TX","central",32.9757,-96.8969,"1800 Vantage Drive, Carrollton TX 75006","972-416-7100","https://dallasdoors.com/","sales@dallasdoors.com"],
+["Danvers™","MA","east",42.5724,-70.9527,"2 De Bush Avenue, Middleton MA 01949","978-774-5354","https://overheaddoordanvers.com/","bcarr@overheaddoordanvers.com"],
+["Daytona Beach™","FL","central",29.2108,-81.0228,"219 Fentress Blvd, Daytona Beach FL 32114","386-226-3820","https://www.overheaddoordaytona.com/","jeff@overheaddoordaytona.com"],
+["Dayton™","OH","east",39.7589,-84.1916,"1112 Springfield St, Dayton OH 45403","937-528-1346","https://overheaddoorofohio.com/","dmonnin@daytondoorsales.com"],
+["Decatur™","AL","east",34.6953,-86.7083,"9550 Madison Blvd, Madison AL 35758","256-353-2233","","tammywarren@mac.com"],
+["DelMar™","DE","east",38.9128,-75.4268,"603 Marshall Street, Milford DE 19963","302-424-4400","http://overheaddoordelmar.com/","ohdbobby@verison.net"],
+["Denison™","TX","central",33.7548,-96.5367,"3365 Juanita Dr, Denison TX 75020","903-462-0330","https://www.ohdcdenison.com/","greg@tex-oma.com"],
+["Denton County™","TX","central",33.0920,-97.1552,"2100 Village Pkway, Highland Village TX 75077","940-900-3641","https://dallasdoors.com/","sales@ohdfw.com"],
+["Denver™","CO","west",39.7294,-104.8319,"3291 Peoria Street, Aurora CO 80010","303-366-4300","https://www.overheaddoordenver.com/","bethann.pettyjohn@overheaddoordenver.com"],
+["Des Moines™","IA","central",41.7006,-93.7836,"1300 SE Gateway Dr, Grimes IA 50111","515-276-1332","https://overheaddoordesmoines.com/","dan.hiller@dhpace.com"],
+["DFW™-Commercial","TX","central",33.0462,-97.0280,"251B Huffines Blvd, Lewisville TX 75056","817-481-5502","http://www.overheaddoordfw.com/",""],
+["Dixie™","UT","west",37.1041,-113.5841,"3287 E Deseret Drive, St George UT 84790","435-817-4247","http://www.ohdutah.com/",""],
+["Dodge City™","KS","central",37.7528,-100.0171,"101 North Second, Dodge City KS 67801","620-227-8093","https://odcdodgecity.com/","chris@ohddodgecity.com"],
+["Dothan™","AL","east",31.2232,-85.3905,"877 Murray Rd, Dothan AL 36303","334-793-2528","https://www.dothanoverheaddoor.com/",""],
+["Dubuque™","IA","central",42.4971,-90.6646,"1040 Cedar Cross Road, Dubuque IA 52003","563-582-3020","https://overheaddoordubuque.com/","danp@ccohd.com"],
+["Duluth™","MN","central",46.7867,-92.1005,"4214 Airpark Blvd, Duluth MN 55811","218-722-2884","http://www.ohdnorthernmn.com/","pfinnegan.ohdduluth@gmail.com"],
+["Eastern Idaho™","ID","west",43.8231,-111.7924,"4019 East 461 North, Rigby ID 83442","208-745-5454","","chenec.ddc@gmail.com"],
+["Eastern Kentucky™","KY","east",37.3977,-82.7227,"240 Mare Creek Rd, Stanville KY 41659","606-874-4262","https://www.ohdeky.com","mike@odeky.com"],
+["Edmonton™","AB","intl",53.5461,-113.4938,"11703-160 Street, Edmonton AB T5M 3Z3","780-451-0060","https://overheaddoor.ca/","g.yost@overheaddoor.ca"],
+["El Paso™","TX","west",31.7619,-106.4850,"8370 Burnham #400, El Paso TX 79907","915-599-2311","https://overheaddoorcompany.minercorp.com/","panguiano@minercorp.com"],
+["Elmira™","NY","east",42.0898,-76.8077,"1251 College Avenue, Elmira NY 14901","607-734-1629","https://overheaddoorelmira.com/","ohdoor@stny.rr.com"],
+["Eugene-Springfield™","OR","west",44.0521,-123.0868,"2090 West 7th Pl, Eugene OR 97402","541-686-8144","https://www.ohdeugene.com/","paul@ohdeugene.com"],
+["Eureka/Arcata™","CA","west",40.9471,-124.0986,"1685 Sutter Road, McKinleyville CA 95519","707-839-1039","https://ohdeurekaarcata.com/","ohd@thomashomecenter.com"],
+["Evanston™ - WY","WY","west",41.2697,-110.9633,"1024 Center Street, Evanston WY 82930","307-789-3134","","tim@derusglassworks.com"],
+["Evansville™","IN","east",37.9716,-87.5711,"1100 North Congress Ave, Evansville IN 47715","812-423-1884","https://ohdevansville.com/","scotts@ohdcvg.com"],
+["Everett™","WA","west",47.9790,-122.2021,"3303 16th Street, Everett WA 98201","425-252-4454","https://www.overheaddoorofeverett.com/","odceverett@hotmail.com"],
+["Fairbanks™","AK","west",64.8378,-147.7164,"720 College Road, Fairbanks AK 99701","907-452-1848","","sales@odcfairbanks.com"],
+["Fairfield County™","CT","east",41.1177,-73.4071,"2 Broad St, Norwalk CT 06851","203-846-6678","https://www.overheaddoorfairfieldcounty.com/","sales@overheaddoorfairfieldcounty.com"],
+["Fargo™","ND","central",46.8772,-96.7898,"3125 Fiechtner Dr, Fargo ND 58103","701-235-3678","https://www.overheaddoorfargo.com/","info@overheadfargo.com"],
+["Fayetteville™","NC","east",35.0527,-78.8784,"203 Cumberland St, Fayetteville NC 28348","910-423-8090","https://www.overheaddoorfayetteville.com","jwelch@ohdfay.com"],
+["Fergus Falls™","MN","central",46.2833,-96.0778,"1742 College Way, Fergus Falls MN 56537","218-736-6676","","ohdfergusfalls@gmail.com"],
+["Findlay™","OH","east",40.9478,-83.6499,"15273 US 224, Findlay OH 45840","567-271-0122","https://overheaddoornwohio.com/","mike_huss@overheadinc.com"],
+["Flathead Valley™","MT","west",48.1920,-114.3168,"1057 Roosevelt Trail, Kalispell MT 59901","406-407-6026","https://garagedoorrepairkalispell.com/","jd@ohdcofv.com"],
+["Florence™","SC","east",34.1954,-79.7626,"155 South Cashua Drive, Florence SC 29501","843-584-8153","https://ohdflorence.com/","andy@ohdcolumbia.com"],
+["Fort Collins™","CO","west",40.5853,-105.0844,"1719 East Mulberry St, Fort Collins CO 80524","970-493-2345","https://www.overheaddoorfortcollins.com/","brian.clark@overheaddoorfortcollins.com"],
+["Fort Worth™","TX","central",32.6980,-97.3412,"840 Southway Circle, Fort Worth TX 76115","817-921-3641","https://www.ohdfw.com/","info@ohdfortworth.com"],
+["Franklin™","PA","east",41.3978,-79.8314,"1652 Pittsburg Road, Franklin PA 16323","814-437-6805","https://www.overheaddoorfranklin.com/","jmuenk@ohdpgh.com"],
+["Fresno™","CA","west",36.7378,-119.7871,"2465 N Miami, Fresno CA 93727","559-292-3366","https://odcfresno.com/","info@odcfresno.com"],
+["Frisco™","CO","west",39.5748,-106.1000,"481 3rd Street, Silverthorne CO 80498","970-418-9529","https://overheaddoordenver.com/","rob.pettyjohn@overheaddoordenver.com"],
+["Ft. Myers™","FL","central",26.5745,-81.8726,"2325 Crystal Drive, Fort Myers FL 33907","239-936-2036","https://www.garagedoorswfl.com/","caseyp@ohdswfl.com"],
+["Ft. Smith™","AR","central",35.3859,-94.3985,"101 N 9th, Fort Smith AR 72901","479-782-3667","https://fortsmithoverheaddoor.com/",""],
+["Ft. Smith™ (Commercial)","AR","central",35.4779,-94.2294,"8516 Hwy 282, Alma AR 72921","479-783-0667","https://overheaddoorfortsmith.com/","michael.collyar@tisadviers.com"],
+["Ft. Wayne™","IN","east",41.1069,-85.0810,"5331 Keystone Drive, Ft Wayne IN 46825","260-484-1840","https://www.overheaddoorftwayne.com/","bruce.cole@installed.net"],
+["Gainesville™","FL","central",29.6516,-82.3248,"14562 Kennard Street, Waldo FL 32694","352-468-2733","https://www.overheaddoorgnv.com/","iwhitehurst425@gmail.com"],
+["Garden City™","KS","central",37.9717,-100.8725,"807 East Fulton, Garden City KS 67846","620-275-4602","http://overheaddoorgardencity.com/","ohd@wbsnet.org"],
+["Gillette™","WY","west",44.2911,-105.5020,"3208 North Highway 14-16, Gillette WY 82717","307-686-0029","","ohd@vcn.com"],
+["Glens Falls™","NY","east",43.3095,-73.6440,"1584 St Route 9, Moreau NY 12828","518-798-4228","https://www.overheaddoorgf.com/","ohdsales@ohdgf.com"],
+["Granbury™","TX","central",32.4421,-97.7794,"1302 W HWY 377, Granbury TX 76048","817-964-3533","https://ohdcompany.com/","wcampbell12@verizon.net"],
+["Grand County™","CO","west",39.9344,-105.9126,"Tabernash CO 80478","970-887-9345","https://www.overheaddoordenver.com/","rob.pettyjohn@overheaddoordenver.com"],
+["Grand Island™","NE","central",40.9264,-98.3420,"2812 W Old Hwy 30, Grand Island NE 68803","308-303-3718","https://overheaddoorgrandisland.com",""],
+["Grand Junction™","CO","west",39.0639,-108.5506,"2944 I-70 Business Loop, Grand Junction CO 81504","970-245-5000","http://www.overheaddoorgrandjunction.com/","ohdgrjct@aol.com"],
+["Grand Rapids™","MI","east",42.8864,-85.8681,"5761 N Hawkeye Ct SW, Grand Rapids MI 49509","616-261-0300","http://www.overheaddoorgr.com/","toddmhart1@hotmail.com"],
+["Grand Traverse™","MI","east",44.7631,-85.6206,"2550 Preston Drive, Traverse City MI 49684","231-947-3470","https://www.overheaddoorgt.com/","mhartley@loyhartley.com"],
+["Grande Prairie™","AB","intl",55.1708,-118.7942,"11511 95 Ave, Grande Prairie AB T8V 5P7","780-532-9350","https://www.ohdoor.com/","kevinw@ohdoor.com"],
+["Greater Cincinnati™","OH","east",39.3995,-84.5613,"9345 Princeton Glendale, Hamilton OH 45011","513-346-4000","https://www.overheaddoorcincy.com/","leslie.acree@installed.net"],
+["Greater Columbus™ - OH","OH","east",39.9612,-83.0021,"2300 International Street, Columbus OH 43204","614-481-2020","https://overheaddoorofohio.com/","dmonnin@daytondoorsales.com"],
+["Greater Erie™","PA","east",42.1292,-80.0851,"1422 Irwin Drive, Erie PA 16505","814-835-6677","https://www.overheaddoorfranklin.com/","jmuenk@ohdpgh.com"],
+["Greater Hall County™","GA","east",34.2979,-83.8241,"2445 Hilton Drive, Gainesville GA 30501","770-535-1009","https://overheaddoorgreaterhallcounty.com/","sales@ohdghc.com"],
+["Greater Jackson™","MS","central",32.2988,-90.1848,"Ridgeland MS 39157","","https://overheaddoorcompanyjackson.com/",""],
+["Greater Lufkin™","TX","central",31.3382,-94.7291,"413 Della Russell Rd, Lufkin TX 75904","936-366-3426","https://theoverheaddoor.com/greater-lufkin/","Gary@beaumontdoors.com"],
+["Greater Pittsburgh™","PA","east",40.4774,-79.9901,"400 Poplar Street, Pittsburgh PA 15223","412-781-4000","https://www.overheaddoorpittsburgh.com/","jmuenk@ohdpgh.com"],
+["Greater Syracuse™","NY","east",43.0481,-76.1474,"4019 New Court Ave, Syracuse NY 13206","315-437-0397","http://www.ohdsyr.com/","josh@cortlandoverheaddoor.com"],
+["Green Bay™","WI","central",44.5133,-88.1056,"1490 Gruber Road, Green Bay WI 54313","920-393-1393","http://www.ohdgreenbay.com/","btheys@ohdnew.com"],
+["Greensboro™","NC","east",36.0726,-79.7920,"3001 Flagstone Drive, Greensboro NC 27406","336-373-1481","https://overheaddoorgreensboro.com/",""],
+["Greenville™ - NC","NC","east",35.6127,-77.3664,"2047-A South Park Drive, Winterville NC 28590","252-752-7008","https://www.overheaddoorcompanyeasternnc.com/","vcohdnb50@yahoo.com"],
+["Greenville™ - SC","SC","east",34.8526,-82.3940,"2920 Grandview Dr, Greenville SC 29680","864-277-9460","https://overheaddoorgreenville.com/","salesgreenville@dhpace.com"],
+["Gypsum™","CO","west",39.6472,-107.0380,"Gypsum CO 81637","970-524-8388","https://www.overheaddoordenver.com/","rob.pettyjohn@overheaddoordenver.com"],
+["Hagerstown™","MD","east",39.6418,-77.7200,"18136 Oak Ridge Dr, Hagerstown MD 21740","301-739-4300","https://www.hpg-ohd.com/","info@hpg-ohd.com"],
+["Harrisburg-York™","PA","east",40.1175,-76.9097,"576 Grandview Dr, Lewisberry PA 17339","717-938-6101","https://www.overheaddoors.com/harrisburg-pennsylvania/","sales@odchy.com"],
+["Hartford™","CT","east",41.7658,-72.6734,"303 Locust Street, Hartford CT 06114","860-527-0709","https://www.ohdhartford.com/","info@ohdhartford.com"],
+["Hattiesburg™","MS","east",31.3271,-89.2903,"46 Hatten Road, Hattiesburg MS 39402","601-268-1491","https://vergedoors.com/","ohdhburg@gmail.com"],
+["Helena™","MT","west",46.5958,-112.0270,"1830 Boulder Ave, Helena MT 59601","406-449-7515","","sales@ohdhelena.com"],
+["Hibbing™","MN","central",47.4272,-92.9377,"1411 Highway 169, Hibbing MN 55746","218-262-3071","http://www.ohdnorthernmn.com/","john@ohdnorthernmn.com"],
+["Hill Country™","TX","central",29.7946,-98.7317,"37415 IH-10 West, Boerne TX 78006","830-249-3649","https://www.sanantoniodoor.com/","hcohd@yahoo.com"],
+["Hilton Head™","SC","east",32.2163,-80.7526,"2001 B E Wheatley Drive, Beaufort SC 29902","843-489-3200","https://overheaddoorhiltonhead.com/","rsmith@ohdocsc.com"],
+["Houma™","LA","central",29.5958,-90.7195,"2155 Church Street, Zachary LA 70791","225-654-2859","https://overheaddoorbatonrouge.com/","yvette@odcc.brcoxmail.com"],
+["Houston County™","GA","east",32.5216,-83.6513,"1230 5th Ave, Columbus GA 31901","706-358-4500","https://odccolumbus.com/","egaffney@gaffneyodc.com"],
+["Houston™","TX","central",29.6511,-95.3863,"3450 S Sam Houston Pkwy E, Houston TX 77047","713-667-1757","https://overheaddoorhouston.com/","scott.porter@ohdconroe.com"],
+["Hudson River Valley™","NY","east",41.7004,-73.9209,"29 Firemans Way, Poughkeepsie NY 12603","800-670-3667","https://www.ohdhrv.com/","info@accessanvil.com"],
+["Indianapolis™","IN","east",39.9154,-86.0638,"8811 Bash Street, Indianapolis IN 46256","317-842-7444","https://www.myohd.com/","chuck.hood@installed.net"],
+["Jackson™ - MI","MI","east",42.2459,-84.4013,"440 E Prospect St, Jackson MI 49203","517-784-3328","https://overheaddoormichigan.com/","dwhit@ohdbc.com"],
+["Jackson™ - MS","MS","central",32.2573,-90.1332,"198 W Ridgeland Ave, Ridgeland MS 39157","601-856-8400","https://overheaddoorcompanyjackson.com/","ohdofjackson@live.com"],
+["Jackson™ - TN","TN","central",35.6145,-88.8139,"4450 North Highland Ave, Jackson TN 38305","731-668-6609","","ftull@tullbrothersinc.com"],
+["Jacksonville™ - FL","FL","central",30.2519,-81.5158,"6884 Phillips Pkwy Dr N, Jacksonville FL 32256","904-268-1627","https://overheaddoorofjacksonville.com/","ohdjaxfl@bellsouth.net"],
+["Jacksonville™ - NC","NC","east",34.7540,-77.4302,"1212 Gum Branch Road, Jacksonville NC 28540","910-346-1116","https://www.overheaddoorcompanyeasternnc.com/","vcohdnb@suddenlinkmail.com"],
+["Jasper™","TX","central",30.9207,-94.0049,"1501 N Wheeler, Jasper TX 75951","409-489-9898","https://theoverheaddoor.com/jasper/","Gary@beaumontdoors.com"],
+["Johnson City™","TN","east",36.3134,-82.3535,"3056 Boones Creek Road, Johnson City TN 37601","423-282-9191","https://www.garagedoorjohnsoncity.com/","ncox@wmstrimble.com"],
+["Johnstown™","PA","east",40.3267,-78.9220,"821 Pine Street, Johnstown PA 15902","814-535-7761","https://www.ohdjohnstown.com/","chad@ohdjohnstown.com"],
+["Joliet™","IL","central",41.5250,-88.1815,"48 Meadow Avenue, Joliet IL 60436","815-725-6077","https://overheaddoorjoliet.com/","markodcjol25@yahoo.com"],
+["Joplin™","MO","central",37.0615,-94.5018,"3558 W Red Iron Dr, Webb City MO 64870","417-623-0010","https://overheaddoorjoplin.com/","tim.lower@ohdspringfield.com"],
+["Kalamazoo™","MI","east",42.2917,-85.5872,"5291 Wynn Road, Kalamazoo MI 49048","269-381-9570","https://overheaddoorkalamazoo.com/","bevkd@ohdkz.com"],
+["Kansas City™","KS","central",38.8814,-94.8191,"1901 E 119th Street, Olathe KS 66061","816-221-0072","https://overheaddoorkansascity.com/","dan.hiller@ohdkc.com"],
+["Kearney™","NE","central",40.6994,-99.0817,"2110 E Lincoln Hwy, Kearney NE 68847","308-270-4098","https://www.overheaddoorkearney.com",""],
+["Killeen™","TX","central",31.1171,-97.7278,"22009 Bush Dr, Waco TX 76712","254-776-0820","https://overheaddoorwaco.com/","ohdwacobryan@hot.rr.com"],
+["Kitchener-Waterloo Ltd.™","ON","intl",43.4516,-80.4925,"1746 Victoria Street North, Kitchener ON N2B 3E6","519-745-4745","https://www.overheaddoorkw.ca/","bert@overheaddoorkw.ca"],
+["Klamath Falls™","OR","west",42.2249,-121.7817,"2363 South 6th Street, Klamath Falls OR 97601","541-882-1564","https://overheaddoorklamathfalls.com/","jim@ohdkf.com"],
+["Knoxville™","TN","east",35.9606,-83.9207,"715 Sevier Avenue, Knoxville TN 37920","865-573-1950","https://www.overheadonline.com/","ncox@wmstrimble.com"],
+["Lafayette™ - IN","IN","east",40.4167,-86.8753,"526 N Earl Ave, Lafayette IN 47904","765-742-5844","","dougm@mulhaupts.com"],
+["Lafayette™ - LA","LA","central",30.2241,-92.0198,"304 Cardinal Dr, Lafayette LA 70508","337-889-2031","https://www.overheaddooroflafayette.com/","brooks@overheadlaf.com"],
+["Lake & McHenry Counties™","IL","central",42.3714,-88.1141,"128 East Main Street, Round Lake Park IL 60073","847-546-4000","http://www.overheaddoor1.com/","overhead@ameritech.net"],
+["Lake Charles™","LA","central",30.2266,-93.2174,"2707 E Napoleon, Sulphur LA 70663","337-625-4117","https://theoverheaddoor.com/lake-charles/","Gary@beaumontdoors.com"],
+["Lake Sumter™","FL","central",29.1872,-82.1401,"2521 NE 14th St, Ocala FL 34470","352-622-3581","https://overheaddoorgnv.com/","iwhitehurst425@gmail.com"],
+["Lakeland™","FL","central",28.0395,-81.9498,"Lakeland FL","813-793-7740","","van.rowe@dhpace.com"],
+["Lancaster™","PA","east",40.0379,-76.3055,"115 Independence Court, Lancaster PA 17601","717-735-0011","https://www.odclancaster.com/","info@odclancaster.com"],
+["Lansing™","MI","east",42.7325,-84.5555,"2045 East M78, East Lansing MI 48823","517-332-1133","https://www.michiganoverheaddoors.com/","mikeb@michiganoverheaddoors.com"],
+["Laredo™","TX","central",27.5306,-99.4803,"2303 Santa Rita Ave, Laredo TX 78040","956-608-3053","","arreola@overheaddoorofsouthtexas.com"],
+["Las Cruces™","NM","west",32.3199,-106.7637,"2798 Inland Street, Las Cruces NM 87401","575-524-5979","https://commercial.overheaddoorlascruces.com/","manny.maestas@dhpace.com"],
+["Las Vegas™","NV","west",36.1699,-115.1398,"6145 Harrison Drive, Las Vegas NV 89120","702-997-9170","https://www.overheaddoorlv.com/","cam@nffn.us"],
+["Laurel™","MS","east",31.6946,-89.1306,"97 Houston Rd, Laurel MS 39401","601-649-1546","https://vergedoors.com/overhead-door-company-of-laurel/","laurelohd@yahoo.com"],
+["Lawton™","OK","central",34.6036,-98.3959,"1915 SW 6th St, Lawton OK 73501","580-699-8080","https://www.ohdclawton.com/","greg@tex-oma.com"],
+["Leominster™","MA","east",42.5251,-71.7598,"444 Central Street, Leominster MA 01453","978-537-9932","https://www.theoverheaddoorco.com/","sales@odcleominster.com"],
+["Lethbridge™","AB","intl",49.6956,-112.8451,"2835-12th Avenue North, Lethbridge AB T1H 5K9","403-328-0922","https://www.overheaddoorsales.ca/","sales@overheaddoor.tv"],
+["Lewiston-Clarkston™","ID","west",46.4165,-117.0177,"422 20th Street North, Lewiston ID 83501","208-743-8485","https://overheaddoorinc.com/","johncook@spro.net"],
+["Lexington™","KY","east",38.0406,-84.5037,"181 Trade Street, Lexington KY 40511","859-254-6606","https://odclex.com/","bbell@odclex.com"],
+["Lincoln™","NE","central",40.8136,-96.7026,"4123 Progressive Avenue, Lincoln NE 68504","402-466-8328","https://overheaddooroflincoln.com/","ohdlincmike@aol.com"],
+["Little Rock™","AR","central",34.8129,-92.3732,"5303 Crystal Hill Rd, Little Rock AR 72118","501-758-3505","https://overheaddooroflittlerock.com/",""],
+["London™","ON","intl",42.9849,-81.2453,"147 Stronach Crescent, London ON N5V 3G5","519-659-0452","","bcrombeen@edwardsdoors.com"],
+["Longview™","TX","central",32.5007,-94.7405,"1000 West Cotton, Longview TX 75604","903-758-0301","https://www.overheadtyler.com/contact","charlesg@overheadtyler.com"],
+["Los Angeles Basin™","CA","west",34.1063,-117.5931,"8758 Hellman Ave, Rancho Cucamonga CA 91730","909-981-3300","https://www.overheadlabasin.com/","avilavian@gmail.com"],
+["Louisville™","KY","east",38.2527,-85.7585,"1328 W Jefferson Street, Louisville KY 40203","502-585-1575","http://www.odclou.com/","odclouisville@odclou.com"],
+["Lubbock™","TX","west",33.5779,-101.8552,"4912 Frankford, Lubbock TX 79424","806-797-4141","https://overheaddoorlbk.com/","service@overheaddoorlubbock.com"],
+["Lycoming County™","PA","east",41.2412,-77.0011,"633 West Third Street, Williamsport PA 17701","570-326-7337","","jrs32@comcast.net"],
+["Lynchburg™","VA","east",37.4137,-79.1422,"3504 Mayflower Dr, Lynchburg VA 24501","434-845-3955","https://overheaddoorcharlottesville.com/","chrisshaner@overheaddoorcharlottesville.com"],
+["Macon™","GA","east",32.8407,-83.6324,"110 Macon West Drive, Macon GA 31210","478-474-4347","https://ohdofmacon.com/","braines@ohdofmacon.com"],
+["Madison™","WI","central",43.0731,-89.4012,"917 Watson Avenue, Madison WI 53713","608-271-4288","http://www.overheaddoormadison.com/","ohdmadison@sbcglobal.net"],
+["Manchester™","NH","east",42.9956,-71.4548,"900 Candia Road, Manchester NH 03109","603-434-2911","","jtrue@overheaddoorcompany.com"],
+["Mankato™","MN","central",44.1636,-94.0007,"1430 3rd Avenue, Mankato MN 56001","507-625-2539","https://overheaddoormankato.com/","ohdoor1@hickorytech.net"],
+["Maricopa-Pinal County™","AZ","west",33.4148,-111.8315,"550 W Southern Ave, Mesa AZ 85210","480-485-5505","https://overheaddooraz.com/","travis@overheaddooraz.com"],
+["Maritime™","NS","intl",44.6488,-63.5752,"50 Thornhill Dr, Halifax NS B3B 1S1","902-425-2623","","blu@mddl.ca"],
+["Marquette™","MI","central",46.5436,-87.3954,"1009 W Bluff St, Marquette MI 49855","906-226-6516","","odcmqt@gmail.com"],
+["Mason City™","IA","central",43.1536,-93.2010,"225 18th Street SE, Mason City IA 50401","641-424-4114","https://www.overheaddoormasoncity.com/","sean.wells@overheaddoormasoncity.com"],
+["Massena™","NY","east",44.9284,-74.8924,"10164 State Highway 56, Massena NY 13662","315-769-8025","","odcmassena@gmail.com"],
+["Maysville™","KY","east",38.8145,-84.2732,"2571 Ritchie Avenue, Crescent Springs KY 41017","859-810-7879","","scotts@ohdcvg.com"],
+["Memphis™","TN","central",35.1175,-90.0470,"2080 Elvis Presley Blvd, Memphis TN 38106","901-948-3424","http://overheaddoormemphis.com/","herman@ohdmemphis.com"],
+["Metro Detroit™","MI","east",42.3223,-83.5022,"6865 Commerce Blvd, Canton MI 48187","734-455-5150","https://frazagroup.com/","rrunyan@frazagroup.com"],
+["Metro Milwaukee™","WI","central",42.9083,-87.8540,"5969 S Pennsylvania Ave, Cudahy WI 53110","414-769-0487","https://ohdmetromilwaukee.com/","info@ohdmm.com"],
+["Metro West™","MA","east",42.1315,-70.9168,"300 Weymouth Street, Rockland MA 02370","781-926-3612","https://www.overheaddoormetrowest.com","steve.pascuzzi@dhpace.com"],
+["Mexico City™","MX","intl",25.6866,-100.3161,"General Escobedo NL, Mexico 66072","+52 (81) 1477-0080","https://www.metropolitanaccesssys.com/","jzolezzi@metropolitanaccess.com"],
+["Miami-Dade™","FL","central",25.8168,-80.3241,"8359 NW 54 Street, Miami FL 33166","305-594-1900","","bbdoor@aol.com"],
+["Mid Florida™ - Commercial","FL","central",28.6762,-81.4973,"777 South Park Ave, Apopka FL 32703","407-884-5955","https://floridadoorsolutions.com/","van.rowe@dhpace.com"],
+["Middlesex County™","CT","east",41.5962,-72.6454,"97 Berlin Rd, Cromwell CT 06416","860-856-5538","https://ohdct.com/middlesex-county","gwolinski@ohdct.com"],
+["Mid-Louisiana™ - Commercial","LA","central",30.4960,-92.4154,"4498 Hwy 190, Eunice LA 70535","337-603-1800","https://ohdmidla.com/","maria@superiorresourcesllc.net"],
+["Mid-Mississippi™","MS","east",32.1484,-89.9994,"2464 Hwy 49, Florence MS 39073","601-684-1491","https://vergedoors.com/","info@vergedoors.com"],
+["Mid-Ohio Valley™","WV","east",39.2695,-81.5429,"1607 Rayon Drive, Parkersburg WV 26101","304-422-3800","https://www.ohdmov.com/","skylar110@frontier.com"],
+["Milwaukee™ - Residential","WI","central",42.9283,-87.8740,"6215 S Ace Industrial Drive, Cudahy WI 53110","414-502-3667","https://overheaddoorsoutheastwisconsin.com/","chris.paez@dhpace.com"],
+["Minot™","ND","central",48.2325,-101.2963,"1905 Burdick Expy W, Minot ND 58701","701-852-7070","https://www.ohdminot.com/","chris@ohdminot.com"],
+["Missoula™","MT","west",46.8721,-113.9940,"835 Ronan Street, Missoula MT 59801","406-318-6256","","ohdmsla@hotmail.com"],
+["Mobile Bay™","AL","central",30.6035,-87.9037,"26041 Predazzer Lane, Daphne AL 36526","251-990-9368","https://mobilebayohd.com/","Jmorgan@mobilebayoverheaddoor.com"],
+["MonDak™","MT","west",47.7167,-104.1594,"1647 South Central Ave, Sidney MT 59270","406-433-8213","","dustin@elevonbuild.com"],
+["Monterrey™","MX","intl",25.7474,-100.3960,"Privada Santa Lucia 121, Apodaca NL Mexico 66600","52-81-8399-0081","","jzolezzi@metropolitanaccess.com"],
+["Montgomery™","AL","east",32.5093,-86.3677,"3741 Grandview Road, Millbrook AL 36054","334-285-5275","https://www.ohdfireplace.com/","info@ohdfireplace.com"],
+["Mt. Pleasant™","TX","central",33.1565,-94.9688,"119 East 11th Street, Mt Pleasant TX 75455","903-572-9063","https://www.overheadtyler.com/","kent@overheadtyler.com"],
+["Muncie-Hartford City™","IN","east",40.1934,-85.3864,"7200 N State Road 3, Muncie IN 47303","765-587-1444","https://www.overheaddoormuncie.com/","mike.brattain@installed.net"],
+["Nampa™","ID","west",43.5407,-116.5635,"161 Caldwell Blvd, Nampa ID 83651","208-467-2300","https://overheaddoorinc.com/","jambowers@spro.net"],
+["Naples™","FL","central",26.1420,-81.7948,"6100 Lee Ann Lane, Naples FL 34109","239-597-4848","https://www.garagedoorswfl.com/","caseyp@ohdswfl.com"],
+["Nashville™","TN","east",36.1627,-86.7816,"1922 Old Murfreesboro Pike, Nashville TN 37217","615-868-3667","https://overheaddoornashville.com/","altpurch@dhpace.com"],
+["New Bern™","NC","east",35.1085,-77.0441,"2817 Neuse Blvd, New Bern NC 28560","252-638-3167","https://overheaddoornewbern.com/","vcohdnb50@yahoo.com"],
+["New Braunfels™","TX","central",29.7030,-98.1245,"5255 S I-35, New Braunfels TX 78132","830-893-0369","https://www.sanantoniodoor.com/","debra.hcohd@yahoo.com"],
+["New Orleans™","LA","central",29.9879,-90.1491,"5913 Blessey St, New Orleans LA 70123","504-822-0345","https://www.ohdno.com/","jgibbs@southerndock.com"],
+["New Plymouth™ - ID","ID","west",43.9687,-116.8193,"118 Plymouth Avenue, New Plymouth ID 83655","208-278-3213","https://overheaddoorinc.com/","gshippy@overheaddoorinc.com"],
+["New York City™","NY","east",40.7614,-73.3196,"850 Grand Blvd, Deer Park NY 11729","631-701-6922","https://overheaddoornyc.com/",""],
+["Nittany Valley™","PA","east",40.7049,-77.5956,"7 Third St, Milroy PA 17063","717-242-0462","https://overheaddoornittanyvalley.com/","overheaddoor1@verizon.net"],
+["Norfolk™ - NE","NE","central",41.9876,-97.4173,"1801 S 13th Street, Norfolk NE 68701","402-379-0160","https://overheaddoornorfolkne.com/","overhead@conpoint.com"],
+["Norfolk™ - VA","VA","east",36.8468,-76.1354,"1417 Miller Store Rd, Virginia Beach VA 23455","757-363-0330","https://www.ohdnorfolk.com/","ejost@ohdnorfolk.com"],
+["North Alabama™","AL","east",34.6990,-86.7483,"9550 Madison Blvd, Madison AL 35758","256-772-3674","https://www.overheaddoorcompanyofhuntsville.com/","odcna@yahoo.com"],
+["North Arkansas™","AR","central",36.3395,-92.3832,"1551 Hwy 62 East, Mountain Home AR 72653","870-761-0590","https://www.overheaddoornortharkansas.com/","bcaent.llc@gmail.com"],
+["North Central Kansas™","KS","central",38.8403,-97.6114,"425 E Avenue A, Salina KS 67401","","https://odcnck.com/","odcnck@gmail.com"],
+["North Eastern Pennsylvania™","PA","east",41.3368,-75.9568,"3700 PA-118, Dallas PA 18612","570-388-4001","https://overheaddoorofnepa.com/","jeffv@mtzionmh.com"],
+["North Florida™","FL","central",30.3322,-81.6557,"6801 Suemac Place, Jacksonville FL 32254","","",""],
+["North Mississippi™","MS","central",34.9343,-88.5226,"1111 Highway 72E, Corinth MS 38834","662-287-4477","","ftull@tullbrothersinc.com"],
+["Northeast Arkansas™","AR","central",35.8423,-90.6709,"3007 Orval Orlan, Jonesboro AR 72404","870-972-0200","https://info.overheaddoornea.com/","sallen@dittainc.com"],
+["Northeast Georgia™","GA","east",33.9479,-83.5343,"190 Ben Burton Rd, Bogart GA 30622","706-543-3667","https://overheaddoornortheastga.com/","john.nale@dhpace.com"],
+["Northeast Iowa™","IA","central",42.9656,-91.5787,"101 Commercial St, West Union IA 52175","563-422-0025","https://www.ohdcwaterloo.com","masmor@hotmail.com"],
+["Northern Arizona™","AZ","west",33.4152,-111.8315,"616 W 24th Street, Tempe AZ 85282","480-968-3667","https://overheaddoorcentralarizona.com/","azsales@dhpace.com"],
+["Northern Illinois™","IL","central",42.0459,-88.2857,"563 Commonwealth Dr, East Dundee IL 60118","847-882-5662","","mruffnerjr@tcgaragedoor.com"],
+["Northern Kentucky™","KY","east",39.0576,-84.6621,"2571 Ritchie Avenue, Crescent Springs KY 41017","859-341-6646","https://www.overheaddooronline.com/","scotts@ohdcvg.com"],
+["Northern Ohio™","OH","east",41.6660,-81.3401,"7653 St Clair Avenue, Mentor OH 44060","440-951-1210","https://overheaddoornorthernohio.com/","tliebhardt@timberskovar.com"],
+["Northern Ontario™","ON","intl",46.4908,-80.9927,"3057 Kingsway, Sudbury ON P3B 2G5","224-699-9266","","mrostern@provincialdoors.com"],
+["Northwest Florida™","FL","central",30.5148,-86.4981,"101 S John Sims Pkwy, Valparaiso FL 32580","850-269-3246","https://destinoverheaddoor.com/","wbernheisel@dillardgulfcoast.com"],
+["Northwest Indiana™","IN","east",41.4731,-87.3322,"7136 Broadway, Merrillville IN 46410","219-738-2929","https://www.overheaddoornwi.com/","cameron962@aol.com"],
+["Northwest Kansas™","KS","central",39.3500,-101.7106,"716 W HWY 24, Goodland KS 67735","785-899-3064","","odcnwks@st-tel.net"],
+["Norwich™","CT","east",41.5445,-71.9930,"88 Route 2-A, Preston CT 06365","860-889-3848","https://ohdct.com/","slepage@ohdct.com"],
+["Ocala™","FL","central",29.1872,-82.1401,"2521 NE 14th Street, Ocala FL 34470","352-622-5737","https://www.overheaddoorgnv.com/","iwhitehurst425@gmail.com"],
+["Oklahoma City™","OK","central",35.4676,-97.5164,"4141 SW 29th, Oklahoma City OK 73119","405-685-2200","https://oklahomacityoverheaddoor.com/","ohdokc@aol.com"],
+["Olmsted County™","MN","central",44.0233,-92.4802,"406 37th Street NE, Rochester MN 55906","507-373-4435","https://www.odcolmstedcounty.com/","eric.gruhlke@odcolmstedcounty.com"],
+["Olympic Peninsula™","WA","west",46.9799,-123.9446,"904 5th St Extension, Hoquiam WA 98550","360-532-1540","","niemannandniemann@gmail.com"],
+["Omaha™","NE","central",41.1544,-96.0313,"1222 Royal Dr, Papillion NE 68046","402-331-0526","https://overheaddooromaha.com/","rick@overheaddooromaha.com"],
+["Orange County™","CA","west",33.7192,-118.0156,"15641 Product Lane, Huntington Beach CA 92649","714-799-5320","https://overheaddoorcompanyoforangecounty.com/","pacificdoor@earthlink.net"],
+["Orlando™","FL","central",28.7015,-81.3537,"1351 Bennett Drive, Longwood FL 32750","407-830-5600","https://ohdorlando.com/","ohdorlando@aol.com"],
+["Ottumwa™","IA","central",41.0200,-92.4113,"809 Hayne Street, Ottumwa IA 52501","641-682-3886","https://www.frasecompany.com/overhead-door/","jeremy@frasecompany.com"],
+["Owensboro™","KY","east",37.9716,-87.5711,"121 N 9th Avenue, Evansville IN 47712","812-423-1884","https://ohdevansville.com/","scotts@ohdcvg.com"],
+["Peel Region™","ON","intl",43.5890,-79.6441,"3-6760 Davand Dr, Mississauga ON L5T 2L9","289-801-4844","https://overheaddoorpeelregion.ca/","cory@abeconstructiongroup.ca"],
+["Pendleton™","OR","west",45.6721,-118.7886,"613 SE Court St, Pendleton OR 97801","509-946-3667","https://overheadtricities.com/","odcjustin@yahoo.com"],
+["Peterborough™","ON","intl",44.3091,-78.3197,"871 Webber Avenue, Peterborough ON K9J 6Y8","705-748-2690","http://www.overheaddoorptbo.ca/","ronbeausoleil@nexicom.net"],
+["Phil-Mont™","PA","east",40.0942,-74.9411,"1425 Adams Rd, Bensalem PA 19020","","https://ohdphil-mont.com","reid@whelandoors.com"],
+["Phoenix Commercial™","AZ","west",33.5093,-112.1193,"2836 W Weldon Ave, Phoenix AZ 85017","602-264-2154","https://ralphwilkens.com/","cwilkens@ralphwilkens.com"],
+["Pierre™","SD","central",44.3683,-100.3510,"1526 N Lowell Ave, Pierre SD 57501","605-224-6200","https://overheaddoorpierre.com/","ohdpierre@chinetworks.net"],
+["Pioneer Valley™","MA","east",42.0434,-72.4816,"541 Center St, Ludlow MA 01056","413-589-0947","https://odcpioneervalley.com/","overheaddoor@doorcenter.biz"],
+["Pittsfield™","MA","east",42.4501,-73.2454,"1450 East Street, Pittsfield MA 01201","413-442-4600","https://www.pittsfieldohd.com/","dave@albanyohd.com"],
+["Plattsburgh™","NY","east",44.6995,-73.4529,"589 Route 3, Plattsburgh NY 12901","518-563-3980","","info@ohdplattsburgh.net"],
+["Plymouth™","MA","east",41.9584,-70.6673,"32 Samoset, Plymouth MA 02360","508-747-8850","https://overheaddoorboston.com/",""],
+["Pocatello™","ID","west",42.8713,-112.4455,"1626 N Harrison, Pocatello ID 83204","208-233-3431","","danc@precisionglass.net"],
+["Polk County™","FL","central",27.9944,-81.9498,"3412 Reynolds Road, Lakeland FL 33803","863-665-1856","http://www.ohdpolk.com/","overheaddoorofpolk@yahoo.com"],
+["Portland™ - ME","ME","east",43.6615,-70.2553,"533 Riverside Industrial Pkwy, Portland ME 04103","207-797-6734","https://www.overheaddoor-portland.com/","crogers@overheaddoorcompany.com"],
+["Portland™ - OR","OR","west",45.5432,-122.7566,"4015 NW St Helens Road, Portland OR 97210","503-252-5111","https://www.overheaddoorpdx.com/","rfaltyn@overheaddoorpdx.com"],
+["Portsmouth™","NH","east",43.0718,-70.7626,"210 West Rd, Portsmouth NH 03801","603-431-2474","","jcarragher@overheaddoorcompany.com"],
+["Providence/New Bedford™","RI","east",41.7015,-71.4282,"1 Overhead Way, Warwick RI 02888","401-461-3140","https://www.ohd.com/","sgrace@ohd.com"],
+["Pueblo™","CO","west",38.2544,-104.6091,"19 Greenhorn Drive, Pueblo CO 81004","719-564-8510","https://overheaddoorpueblo.com/","salespueblo@dhpace.com"],
+["Puget Sound™","WA","west",47.2073,-122.1426,"13701 24th St E, Sumner WA 98390","253-799-0103","https://ohdpugetsound.com/","tony@ohdbellingham.com"],
+["Quincy™","IL","central",39.9356,-91.4099,"6923 State Street, Quincy IL 62305","217-222-0634","https://www.overheaddoorofquincy.com/","ohd@adams.net"],
+["Raleigh™","NC","east",35.8591,-78.5506,"3224 Gresham Lake Road, Raleigh NC 27615","919-876-0637","https://ohdraleigh.com/","twolfe@ohdraleigh.com"],
+["Rapid City™","SD","central",44.0805,-103.2310,"3110 Cambell St, Rapid City SD 57701","605-343-8300","https://ohdrapidcity.com/","rogue1@rushmore.com"],
+["Reading™","PA","east",40.3356,-75.9269,"901 Delta Avenue, Reading PA 19605","610-929-8631","https://overheaddoorofreading.com/","jrohrbach@overheaddoorofpa.com"],
+["Redding™","CA","west",40.5865,-122.3917,"1675 Beltline Rd, Redding CA 96003","530-710-8801","","shastagaragedoors@gmail.com"],
+["Regina™","SK","intl",50.4452,-104.6189,"1727 Francis St, Regina SK S4N 7N2","306-545-4040","http://www.odcs.ca/","michelle@odcs.ca"],
+["Richmond™","IN","east",39.8289,-84.8902,"411 NW F Street, Richmond IN 47374","765-962-3032","https://overheaddoorsrichmond.com/","ohd2@frontier.com"],
+["Riverton-Lander™","WY","west",43.0244,-108.3800,"600 East Main, Riverton WY 82501","307-856-2210","","cparmely@wyoming.com"],
+["Roanoke™","VA","east",37.2710,-79.9414,"1226 Trapper Circle NW, Roanoke VA 24012","540-345-2209","https://www.ohdva.com/","iarmentrout@ohdva.com"],
+["Rockford™","IL","central",42.0611,-88.2884,"9N615 Nokomis Ln, Elgin IL 60124","224-833-1895","https://overheaddoorrockford.com/","dan@ohdchi.com"],
+["Rogue Valley™","OR","west",42.3265,-122.8756,"2110 Stewart Ave, Medford OR 97501","541-770-5577","https://odcrv.com/","office@odcrv.com"],
+["Roseburg™","OR","west",43.2165,-123.3417,"1045 NE Alder Street, Roseburg OR 97470","541-430-0294","http://www.odcroseburg.com/","tannr00771@gmail.com"],
+["Russellville™","AR","central",35.2784,-93.1338,"2601B W Main St, Russellville AR 72801","479-264-7931","","abby_mize@hotmail.com"],
+["Rutland™","VT","east",43.6106,-72.9726,"63 Plain Street, Rutland VT 05701","802-775-5711","https://www.rutlandohd.com/","info@rutlandohd.com"],
+["Sacramento™","CA","west",38.4747,-121.4597,"6756 Franklin Blvd, Sacramento CA 95823","916-421-3747","https://www.overheaddoorofsacramento.com/","sits@ohdsac.com"],
+["Salem™","OR","west",44.9429,-123.0351,"4723 Portland Rd NE, Salem OR 97305","503-393-1236","http://www.ohdsalem.com/","rodger@ohdsalesm.com"],
+["Salinas™","CA","west",36.6777,-121.6555,"733 Sanborn Place, Salinas CA 93901","831-422-3667","https://www.papeoverheaddoor.com/","dsalman@eppape.com"],
+["Salt Lake City™ - Residential","UT","west",40.5885,-111.8783,"8682 S Sandy Pkwy, Sandy UT 84070","801-285-5222","","cam@nffn.us"],
+["San Angelo™","TX","central",31.4638,-100.4370,"926 West 19th Street, San Angelo TX 76903","325-657-0758","https://overheaddoorpermianbasin.com/","lrvette84@aol.com"],
+["San Antonio Commercial™","TX","central",29.5073,-98.3773,"11827 Tech Com Road, San Antonio TX 78233","210-655-8600","https://www.sanantoniodoor.com/","djanssen@minercorp.com"],
+["San Antonio Residential™","TX","central",29.4941,-98.3773,"385 N Weidner Rd, San Antonio TX 78233","210-547-0359","","shane.hcohd@yahoo.com"],
+["San Juan™","PR","intl",18.4655,-66.1057,"Toa Baja PR 00949","787-798-1261","","nrivera@mnelectronic.com"],
+["San Luis Potosi™","MX","intl",22.1565,-100.9855,"Nueva Amsterdam 4102, Monterrey MX 64310","956-794-3600","","jescamilla@jetrade.com.mx"],
+["Santa Clara Valley™","CA","west",37.3688,-122.0363,"1266 Lawrence Station Rd, Sunnyvale CA 94089","408-734-8010","https://www.papeoverheaddoor.com/","dsalman@eppape.com"],
+["Santa Fe™","NM","west",35.6069,-105.9380,"10 Bisbee Court, Santa Fe NM 87508","505-474-2932","https://overheaddoorsantafe.com/","ohdofsf@odcnm.com"],
+["Santa Rosa™","CA","west",38.4404,-122.7141,"1805 Empire Industrial Ct, Santa Rosa CA 95403","707-542-4949","https://overheaddoorsantarosa.com/","odcsr_ac@sonic.net"],
+["Sarasota™","FL","central",27.3364,-82.5307,"1249 Stringfield Avenue, Sarasota FL 34237","941-955-8343","https://www.ohdsarasota.com/","info@ohdsarasota.com"],
+["Sault Saint Marie™","MI","east",46.4953,-84.3453,"19030 S Mackinaw Trail, Rudyard MI 49780","800-236-3822","","odc_ssm@yahoo.com"],
+["Savannah™","GA","east",32.1363,-81.3927,"129 Airport Park Drive, Savannah GA 31408","912-964-8459","https://overheaddoorofsavannah.com/","jjameson@ohdsavannah.com"],
+["Scranton™","PA","east",41.4695,-75.5897,"715 Lincoln Avenue, Blakely PA 18447","570-489-1661","https://scrantonoverheaddoor.com/","ohdscr@aol.com"],
+["Seattle™","WA","west",47.5112,-122.2595,"9800 40th Ave S, Seattle WA 98118","206-394-3300","https://www.eppape.com/","jmcmaster@ohdseattle.com"],
+["Shenandoah Valley™","VA","east",38.4496,-78.8689,"1573 C F Pours Drive, Harrisonburg VA 22802","540-433-3903","https://www.ohdva.com/","iarmentrout@ohdva.com"],
+["Shreveport™","LA","central",32.5252,-93.7502,"9421 Saint Vincent, Shreveport LA 71106","318-865-7666","https://www.overheaddoorshreveport.com/",""],
+["Sierra Nevada-Reno™","NV","west",39.5296,-119.8138,"1290 Holcomb Ave, Reno NV 89502","775-322-4621","https://overheaddoorreno.com/","marianne@odcnv.com"],
+["Sioux City™","IA","central",42.5100,-96.3939,"2500 Dace Ave, Sioux City IA 51106","712-252-4431","https://www.siouxcitydoor.com/","info@siouxcitydoor.com"],
+["Sioux Falls™","SD","central",43.5446,-96.7313,"740 N Delbridge Dr, Sioux Falls SD 57107","605-336-6030","https://overheaddoorsd.com/","jot@overheaddoorsd.com"],
+["South Bend-Mishawaka™","IN","east",41.6614,-86.1581,"58745 Executive Drive, Mishawaka IN 46544","574-259-2822","https://1800overhead.com/","salesres@ohdsb.com"],
+["South Central Indiana™","IN","east",39.2014,-85.9214,"1685 Indianapolis Rd, Columbus IN 47201","812-379-2358","https://www.overheaddoorsci.com/","cwells1528@gmail.com"],
+["South Central Kansas™","KS","central",37.6872,-97.3301,"3506 West Harry Street, Wichita KS 67213","316-944-3667","https://overheaddoorswichita.com/","dustin.carmichael@dhpace.com"],
+["South Central Texas-Brenham™","TX","central",30.1669,-96.3974,"2006 Longwood Drive, Brenham TX 77833","979-421-9315","https://ohdsct.com/","sales@ess-group.com"],
+["South Central Texas-Bryan™","TX","central",30.6280,-96.3344,"5880 Imperial Loop Dr, College Station TX 77845","979-778-0123","https://ohdsct.com/","eross@ess-group.com"],
+["South Central Texas-Coastal Plains™","TX","central",27.8006,-97.3964,"417 Sun Belt Dr, Corpus Christi TX 78408","979-421-9315","https://ohdsct.com/","jross@ess-group.com"],
+["South Florida™ - Commercial","FL","central",25.9860,-80.2331,"3949 Commerce Pkwy, Miramar Beach FL 33025","954-266-7960","https://www.ohdsf.com/","lazcona@jbmathews.com"],
+["South Jersey™","NJ","east",39.4860,-75.0257,"1360 N Delsea Drive, Vineland NJ 08360","856-692-2840","https://sjoverheaddoor.com/","sales@sjoverheaddoor.com"],
+["South Texas™","TX","central",26.3017,-98.1633,"802 E Owassa Rd, Edinburg TX 78542","956-787-3667","https://overheaddoorofsouthtexas.com/","karla@overheaddoorofsouthtexas.com"],
+["Southeast Missouri™","MO","central",37.3968,-89.6561,"206 MO-C, Jackson MO 63755","573-243-3111","https://overheaddoorsemo.com/","johno@overheaddoorsemo.com"],
+["Southeast Texas™","TX","central",29.5483,-95.0182,"321 Columbia Memorial Pkwy, Kemah TX 77565","281-957-7517","https://overheaddoorsetx.com/","sales@leaguecitygaragedoor.com"],
+["Southeastern Massachusetts™","MA","east",42.1185,-71.0990,"67 Tosca Dr, Stoughton MA 02072","781-828-4033","https://www.ohd.com/massachusetts","sgrace@ohd.com"],
+["Southeastern New Mexico™","NM","west",33.3943,-104.5230,"200 S Hemlock, Roswell NM 88203","575-622-0149","https://ohdsenm.com/","jhoskins@ohdsenm.com"],
+["Southern Arizona Commercial™","AZ","west",32.1897,-110.9178,"4200 E Tennessee S, Tucson AZ 85714","520-806-9022","https://www.appliedrite.com/","bgertsch@appliedrite.com"],
+["Southern California™ (San Diego)","CA","west",32.9811,-117.0376,"12215 Kirkham Rd, Poway CA 92064","858-547-3600","https://www.overheaddoorsocal.com/","wayne_henson@overheaddoor.com"],
+["Southern Montana™","MT","west",45.7833,-108.5007,"4115 First Ave S, Billings MT 59101","406-259-8807","http://www.overheaddoorbillings.com/","stemad@vcn.com"],
+["Southern Ontario™","ON","intl",42.5897,-82.3980,"6850 Baseline, Wallaceburg ON N8A 2K6","519-381-4292","https://overheaddoorontario.com/","mrostern@provincialdoors.com"],
+["Southern West Virginia™","WV","east",38.3498,-81.6326,"520 Old Goff Mountain Rd, Charleston WV 25313","606-479-6253","https://www.ohdswv.com/","mike@odeky.com"],
+["Southwest Georgia™","GA","east",31.5785,-84.1557,"1811 Oakridge Drive, Albany GA 31708","229-496-1414","http://www.overheaddoorofsouthwestga.com/","adam@ohdofswga.com"],
+["Southwest Montana™","MT","west",45.7862,-111.1754,"60 Bear Cat Loop, Belgrade MT 59714","406-388-2767","","blossombros@ohdswmt.com"],
+["Southwest Washington™","WA","west",46.1382,-122.9382,"80 Port Way, Longview WA 98632","360-423-3470","","pmartin@overheaddoorsw.com"],
+["Southwestern Idaho™","ID","west",43.6187,-116.2146,"621 Allumbaugh St, Boise ID 83704","208-375-0137","https://overheaddoorinc.com/","estunz@gmail.com"],
+["Spokane Coeur d'Alene™","ID","west",47.7431,-117.0002,"420 East 5th Ave, Post Falls ID 83854","208-773-0502","https://overheaddoorinc.com/","jvoeller@overheaddoorinc.com"],
+["Springdale™","AR","central",36.1867,-94.1288,"2400 S Thompson St, Springdale AR 72764","479-751-5921","https://www.ohdoor-spd.com/","jbunch@ohdoor-spd.com"],
+["Springfield™ - MO","MO","central",37.2153,-93.2982,"707 North Grant Ave, Springfield MO 65802","417-862-9339","https://overheaddoorspringfield.com/","sales@ohdspringfield.com"],
+["St Clair County™","MI","central",42.9290,-82.4924,"5400 Lapeer Rd, Smiths Creek MI 48074","810-987-2185","","sales@crawforddoor.net"],
+["St Joseph™","MO","central",39.7675,-94.8467,"4950 Frederick Ave, St Joseph MO 64506","816-221-0543","https://overheaddoorstjoseph.com/","centralap@dhpace.com"],
+["St. Catharines™","ON","intl",43.1594,-79.2469,"13 Seapark Drive, St Catharines ON L2M 6S5","905-682-5591","https://www.overheaddoorco.ca/","overhead@cogeco.net"],
+["St. Louis™","MO","central",38.6597,-90.4659,"12046 Lackland Road, St Louis MO 63146","314-781-5200","https://overheaddoorstlouis.com/","sales@ohdstl.com"],
+["Stillwater™","OK","central",36.1156,-97.0584,"502 E 12th Street, Stillwater OK 74074","405-372-6186","https://overheaddoorstillwater.com/","kathyodc@yahoo.com"],
+["Stockton™","CA","west",37.9577,-121.2908,"1550 Shaw Rd, Stockton CA 95215","209-948-2704","https://www.overheaddoorstockton.com/","ohdstockton@sbcglobal.net"],
+["Tacoma™","WA","west",47.2529,-122.5082,"2017 70th Ave W, University Place WA 98466","253-564-7756","https://www.overheaddoortacoma.com/","abhohdtac@gmail.com"],
+["Tallahassee™","FL","central",30.4518,-84.2807,"Tallahassee FL 32580","448-206-7844","","wbernheisel@dillardgulfcoast.com"],
+["Tampa Bay™","FL","central",27.9757,-82.5085,"4951 Tampa West Blvd, Tampa FL 33634","813-329-3667","https://overheadtampa.com/","van.rowe@dhpace.com"],
+["Terre Haute™","IN","east",39.4667,-87.4139,"533 North 15 Street, Terre Haute IN 47807","812-232-2527","https://overheaddoorofterrehaute.com/","bstolt@ohdth.com"],
+["Texarkana™","TX","central",33.4251,-94.0477,"6014 N State Line Ave, Texarkana TX 71854","903-838-6004","https://overheaddoortexarkana.com/","trudieeast@cableone.net"],
+["Tex-Oma™","TX","central",32.4487,-99.6831,"5041 S Danville Dr, Abilene TX 79602","325-672-7865","https://ohdctexoma.com/","fred@tex-oma.com"],
+["The Antelope Valley™","CA","west",34.6868,-118.1542,"45040 42nd St E, Lancaster CA 93535","661-946-7000","https://overheaddoorantelopevalley.com/","cmdoor@verizon.net"],
+["The Central Lakeshore™","WI","central",43.7508,-87.7145,"2602 Georgia Ave, Sheboygan WI 53082","920-452-2972","http://www.lakeshoredoor.com/","Tfiedler@Lakeshoredoor.com"],
+["The Chippewa Valley™","WI","central",44.8113,-91.4985,"4901 Lyle Lane, Eau Claire WI 54702","715-874-4565","https://overheaddoorchippewavalley.com/","tim@ohdcv.com"],
+["The Desert™","CA","west",33.8839,-116.3731,"72-310 Quarry Trail, Thousand Palms CA 92276","760-772-3667","https://odcdesert.com/","kate@odcdesert.com"],
+["The Four Corners™","NM","west",36.7280,-108.1886,"2798 Inland Street, Farmington NM 87401","505-327-1282","https://overheaddoorfourcorners.com/","clarence.bodkin@dhpace.com"],
+["The Gold Coast™","FL","central",26.2379,-80.1248,"1300 NW 15th Ave, Pompano Beach FL 33069","954-935-7000","https://www.doorsystemssfl.com/","enovy@overheaddoorgc.com"],
+["The Grand Strand™","SC","east",33.6891,-78.8867,"910 Seaboard Street, Myrtle Beach SC 29577","843-448-9124","https://ohdgrandstrand.com/","gsnyder@ohdgs.com"],
+["The High Country™","NC","east",35.5951,-82.5515,"34C Rosscraggon Rd, Asheville NC 28803","828-522-5222","https://overheaddoorhighcountry.com/","salesasheville@dhpace.com"],
+["The Inland Empire-Commercial™","CA","west",34.0617,-117.3136,"12401 S La Cadena Dr, Colton CA 92324","909-783-3131","https://inlandoverheaddoor.com/","joe@iohd.com"],
+["The Meadowlands™ - Commercial","NJ","east",40.8824,-74.0851,"20 Meta Lane, Lodi NJ 07644","973-471-4060","https://www.overhead-doors.com/","dockndoor@aol.com"],
+["The Mississippi Gulf Coast™","MS","east",30.4218,-88.8882,"2601 Warrior Dr, D'Iberville MS 39540","228-596-5156","https://vergedoors.com/","ohdhburg@netdoor.com"],
+["The Northern Lakes™","IN","east",41.5345,-85.5322,"7360 S State Road 5, Topeka IN 46571","260-593-3496","","OHD@ligtel.com"],
+["The Northland™","MN","central",44.8460,-93.1767,"3195 Terminal Drive, Eagan MN 55121","651-683-0307","https://overheaddoornorthland.com/","jiml@ohdnld.com"],
+["The Oregon Coast™","OR","west",43.9829,-124.1114,"3737 Pine St, Florence OR 97439","541-997-5008","https://ohdoregoncoast.com/","paul@ohdeugene.com"],
+["The Outer Banks™","NC","east",35.9080,-75.6694,"917 Burnside Rd, Manteo NC 27954","252-473-2167","https://overheaddoorobx.com/","dougk@kelloggsupplyco.com"],
+["The Pacific™","HI","west",21.4389,-158.1967,"84-1170 Farrington Hwy, Waianae HI 96792","808-695-8004","https://overhead-door.hawaiiunified.com/","michael.baldwin@hawaiiunified.com"],
+["The Permian Basin™","TX","central",31.9973,-102.0779,"707 South Colorado, Midland TX 79701","432-570-9206","https://overheaddoorpermianbasin.com/","bobweidner@sbcglobal.net"],
+["The Seven Rivers Region™","WI","central",43.8841,-91.2260,"W6797 Abbey Road, Onalaska WI 54650","608-783-6080","https://overheaddoor7riversregion.com/","peter@ODC7RiversRegion.com"],
+["The Southland™","CA","west",34.1478,-117.9994,"124 N Madison Ave, Monrovia CA 91016","626-367-4371","https://odcofthesouthland.com/","gtracy@vvcdoors.com"],
+["The Treasure Coast™","FL","central",26.7743,-80.0623,"3755 Fiscal Court, Riviera Beach FL 33404","561-881-9700","http://overheaddoortc.com/","dallas@danddgaragedoors.com"],
+["The Tri County Area™","MI","east",42.5839,-82.9214,"24387 Sorrentino Ct, Clinton Township MI 48035","586-790-4540","https://www.kvmdoor.com/","kvalice@kvmdoor.com"],
+["The Woodlands™","TX","central",30.1658,-95.4613,"3105 Pollok Dr, Conroe TX 77303","936-270-1132","https://theoverheaddoor.com/","Gary@beaumontdoors.com"],
+["Toledo™","OH","east",41.6528,-83.5379,"340 New Towne Square Dr, Toledo OH 43612","419-476-7811","https://overheaddoornwohio.com/","mike_huss@overheadinc.com"],
+["Tolland County™","CT","east",41.8648,-72.3665,"70 Merrow Road, Tolland CT 06084","860-889-3848","https://overheaddoorct.com/","slepage@ohdct.com"],
+["Topeka™","KS","central",39.0558,-95.7508,"2322 SW 6th Avenue, Topeka KS 66606","816-221-0072","https://overheaddoortopeka.com/","centralap@dhpace.com"],
+["Torrington™","CT","east",41.8006,-73.1212,"133 Kinney Street, Torrington CT 06790","860-489-4090","https://ohdtorrington.com/","lwilliams@ohdtorrington.com"],
+["Tri Cities™ - WA","WA","west",46.2087,-119.1372,"7400 W Arrowhead, Kennewick WA 99336","509-946-3667","https://www.overheadtricities.com/","mckenzie@overheadtricities.com"],
+["Tri-Cities™ - IL","IL","central",41.3406,-89.1334,"617 Shooting Park Road, Peru IL 61354","815-223-8471","","odctri@comcast.net"],
+["Tucson & Southern Arizona™","AZ","west",32.2218,-110.9265,"313 W Sahuaro St, Tucson AZ 85705","520-294-2575","https://www.overheadtucson.com/","jr@overheadtucson.com"],
+["Tulsa™","OK","central",36.2050,-95.9052,"5730 E Admiral Place, Tulsa OK 74115","918-836-2546","https://overheaddoortulsa.com/","fsanders@overheaddoortulsa.com"],
+["Tupelo™","MS","central",34.2576,-88.7033,"3115 S International Blvd, Tupelo MS 38801","662-844-4540","https://maloneyglassanddoor.com/","jud@maloneyglassanddoor.com"],
+["Tuscaloosa™","AL","east",33.2098,-87.5692,"1181 Whigham Place, Tuscaloosa AL 35401","205-345-8588","","sales@ohdbirmingham.com"],
+["Twin Falls™","ID","west",42.5558,-114.4609,"489 S Locust Street, Twin Falls ID 83301","208-734-5723","","ohdoorman1@msn.com"],
+["Tyler™","TX","central",32.3513,-95.3010,"2000 Anthony Dr, Tyler TX 75701","800-444-6843","https://www.overheadtyler.com/","kent@overheadtyler.com"],
+["Utah Valley™","UT","west",40.3572,-111.6960,"1543 W 1430 N, Orem UT 84057","801-851-5724","","cory@ohdutah.com"],
+["Vancouver™","BC","intl",49.2827,-122.7910,"11 Burbidge St, Coquitlam BC V3K 7B2","604-420-4411","http://www.ohdvan.com/","jason@ohdvan.com"],
+["Vaughan™ - Canada","ON","intl",43.8563,-79.5085,"80 Talman CRT, Concord ON L4K 4L5","906-268-1632","https://www.odcvaughan.com/","pgagliardi@zendoors.com"],
+["Vincennes™","IN","east",38.6773,-87.5286,"1026 Main, Vincennes IN 47591","812-886-4506","https://ohdvincennes.com/","staci_overheaddoorco@yahoo.com"],
+["Waco™","TX","central",31.5493,-97.1467,"22009 Bush Drive, Waco TX 76712","254-776-0820","https://overheaddoorwaco.com/","ohdwacobryan@hot.rr.com"],
+["Walla Walla™","WA","west",46.0646,-118.3430,"2310 Eastgate Street, Walla Walla WA 99362","509-529-1703","https://odcww.com/","ohd1703@yahoo.com"],
+["Wasatch™","UT","west",40.7484,-111.8981,"3345 South 300 West, Salt Lake City UT 84115","801-484-8000","","OHD@WasatchDoor.comcastbiz.net"],
+["Washington D.C.™","DC","east",39.0201,-76.8779,"6841 Distribution Drive, Beltsville MD 20705","301-937-1800","https://www.overheaddoors.com/","williewhite@overheaddoorgroup.com"],
+["Waterbury™","CT","east",41.5582,-73.1268,"56 New Wood Road, Watertown CT 06795","860-274-3332","https://www.ohdwaterbury.com/","creynolds@ohdwaterbury.com"],
+["Waterloo™","IA","central",42.4928,-92.3426,"800 Commercial, Waterloo IA 50702","319-233-0471","https://ohdcwaterloo.com/","mason@ohdcwaterloo.com"],
+["Watertown™ - NY","NY","east",43.9748,-75.9107,"25223 NYS Route 3, Watertown NY 13601","315-788-4390","https://ohdwatertown.com/","jeffohd@twcny.rr.com"],
+["Watertown™ - SD","SD","central",44.8997,-97.1148,"1001 16th Street SW, Watertown SD 57201","605-882-2029","https://overheaddoorsd.com/","joT@overheaddoorsd.com"],
+["Wausau™","WI","central",44.9591,-89.6301,"8325 Highland Drive, Wausau WI 54401","715-359-8889","https://www.overheaddoorwausau.com/","tradenz@ohdwausau.com"],
+["Webster County™","IA","central",42.5056,-94.1906,"6 North 21st Street, Fort Dodge IA 50501","515-955-3667","https://www.ohdwebstercounty.com/","ohdwebstercounty@gmail.com"],
+["Wellington-Dufferin County™","ON","intl",43.7059,-80.2764,"920 St David Street North, Fergus ON N1M 2W3","226-383-5625","","info@thrutheportal.ca"],
+["Western Kentucky™","KY","central",37.0834,-88.5997,"523 North Friendship Rd, Paducah KY 42001","270-554-5162","https://odcpaducah.com/","todd@overheaddoorsemo.com"],
+["Wheeling™","WV","east",40.0665,-80.6990,"400 Poplar Street, Pittsburgh PA 15223","412-781-4000","https://www.overheaddoorpittsburgh.com/","rmorris@ohdpgh.com"],
+["Whitmore Lake™","MI","east",42.4337,-83.7936,"11228 Lemen Industrial Dr, Whitmore Lake MI 48189","734-449-0400","https://www.overheaddoorwhitmorelake.com/","brett.ohdwhitmorelake@gmail.com"],
+["Wichita Falls™","TX","west",33.9137,-98.4934,"601 Central Freeway East, Wichita Falls TX 76305","940-767-7788","https://overheaddoorcoofwichitafalls.com/","odcwf@odcwf.com"],
+["Wichita™ - KS","KS","central",37.6943,-97.3378,"3506 West Harry Street, Wichita KS 67213","316-944-7223","https://overheaddoorswichita.com/","Dustin.Carmichael@dhpace.com"],
+["Wilmington™","NC","east",34.2079,-77.9169,"2914 Orville Wright Way, Wilmington NC 28405","910-395-2928","https://overheaddoorwilmington.com/","ohd@ohdwil.com"],
+["Winchester™","VA","east",39.1857,-78.1634,"481 Fort Collier Rd, Winchester VA 22603","540-678-0237","https://www.ohdva.com/","iarmentrout@ohdva.com"],
+["Windham County™","CT","east",41.7914,-71.9693,"93 Hartford Road, Brooklyn CT 06234","860-889-3848","https://overheaddoorct.com/","dlepage@ohdct.com"],
+["Winnipeg™","MB","intl",49.8591,-97.1486,"223 Elan Blvd, Winnipeg MB R2J 4H1","204-233-7167","https://overheaddoorwinnipeg.ca/","scott@doorswinnipeg.com"],
+["Worcester™","MA","east",42.2626,-71.8023,"60 Sunderland, Worcester MA 01604","508-791-3912","https://www.theoverheaddoorco.com/","kanetech@msn.com"],
+["Yakima™","WA","west",46.6021,-120.5059,"1900 Englewood St, Yakima WA 98909","509-248-0665","https://ohdyakima.com/","marcus@ohdyakima.com"],
+["Yankton™","SD","central",42.8711,-97.3973,"1910 Summit Ste A, Yankton SD 57078","605-665-8232","https://www.siouxcitydoor.com/","info@overheaddooryankton.com"]
+];
+
+let map, markers = [], currentFilter = 'all';
+
+function makeIcon(region) {
+  const c = COLORS[region];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="${c}" stroke="white" stroke-width="1.5"/></svg>`;
+  return L.divIcon({ html: svg, className:'', iconSize:[14,14], iconAnchor:[7,7], popupAnchor:[0,-10] });
+}
+
+function popupHTML(d) {
+  const name    = d[0];
+  const region  = d[2];
+  const address = d[5];
+  const phone   = d[6];
+  const website = d[7];
+  const email   = d[8];
+  const ws = website ? `<button class="popup-btn website" onclick="window.open('${website}','_blank')">🌐 Website</button>` : '';
+  const em = email   ? `<a class="popup-btn email" href="mailto:${email}">✉ Email</a>` : '';
+  return `<div class="popup-header ${region}"></div>
+<div class="popup-inner">
+  <div class="popup-name">${name}</div>
+  <div class="popup-region ${region}">${LABELS[region]}</div>
+  ${address ? `<div class="popup-row"><span class="popup-label">Address</span><span>${address}</span></div>` : ''}
+  ${phone   ? `<div class="popup-row"><span class="popup-label">Phone</span><span>${phone}</span></div>` : ''}
+  ${email   ? `<div class="popup-row"><span class="popup-label">Email</span><span style="word-break:break-all">${email}</span></div>` : ''}
+  ${(ws||em) ? `<div class="popup-actions">${ws}${em}</div>` : ''}
+</div>`;
+}
+
+window.onload = function() {
+  map = L.map('map', { center:[39.5,-96], zoom:4, zoomControl:true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'© OpenStreetMap contributors', maxZoom:18
+  }).addTo(map);
+
+  const legend = L.control({ position:'bottomright' });
+  legend.onAdd = () => {
+    const d = L.DomUtil.create('div','legend');
+    d.innerHTML = `<b>Regions</b>
+      <div class="legend-row"><span class="ldot" style="background:#1E88E5"></span>East</div>
+      <div class="legend-row"><span class="ldot" style="background:#43A047"></span>Central</div>
+      <div class="legend-row"><span class="ldot" style="background:#E53935"></span>West</div>
+      <div class="legend-row"><span class="ldot" style="background:#8E24AA"></span>Canada / Intl</div>`;
+    return d;
+  };
+  legend.addTo(map);
+
+  DATA.forEach(d => {
+    const m = L.marker([d[3],d[4]], { icon: makeIcon(d[2]) })
+      .bindPopup(popupHTML(d), { maxWidth:300, minWidth:260 })
+      .bindTooltip(`<b>${d[0]}</b><br><small>${LABELS[d[2]]}</small>`, { direction:'top', offset:[0,-8] });
+    m._region = d[2];
+    m.addTo(map);
+    markers.push(m);
+  });
+};
+
+function filter(region, btn) {
+  currentFilter = region;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.className = 'filter-btn ' + b.className.split(' ').filter(c=>['east','central','west','intl','all'].includes(c)).join(' ');
+  });
+  btn.classList.add('active');
+  let shown = 0;
+  markers.forEach(m => {
+    if (region === 'all' || m._region === region) { m.addTo(map); shown++; }
+    else map.removeLayer(m);
+  });
+  document.getElementById('cnt-total').textContent = `Showing: ${shown}`;
+}
+
+function searchLoc(val) {
+  const q = val.toLowerCase().trim();
+  let shown = 0;
+  markers.forEach((m,i) => {
+    const d = DATA[i];
+    const match = !q || d[0].toLowerCase().includes(q) || d[6].toLowerCase().includes(q) || d[1].toLowerCase().includes(q);
+    const regionOk = currentFilter === 'all' || m._region === currentFilter;
+    if (match && regionOk) { m.addTo(map); shown++; }
+    else map.removeLayer(m);
+  });
+  document.getElementById('cnt-total').textContent = q ? `Results: ${shown}` : `Total: 429`;
+}
+</script>
+</body>
+</html>
